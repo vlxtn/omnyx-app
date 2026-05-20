@@ -1,0 +1,43 @@
+{
+  "name": "omnyx-app",
+  "version": "1.0.0",
+  "description": "Omnyx — Your AI Operating System",
+  "main": "main.js",
+  "author": "Valentin Puc-Dubois",
+  "license": "ISC",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.omnyx.app",
+    "productName": "Omnyx",
+    "copyright": "Copyright © 2026 Omnyx",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": ["main.js"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Omnyx"
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.productivity"
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.2.0",
+    "electron-builder": "^26.8.1"
+  }
+}
