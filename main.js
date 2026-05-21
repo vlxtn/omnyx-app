@@ -1,4 +1,7 @@
 const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage } = require("electron");
+
+// Supprimer le menu natif
+Menu.setApplicationMenu(null);
 const path = require("path");
 
 let mainWindow;
