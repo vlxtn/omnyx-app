@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog } = require("electron");
+const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
@@ -9,15 +9,6 @@ let isQuitting = false;
 
 function getAuthFilePath() {
   return path.join(app.getPath("userData"), "auth.json");
-}
-
-function readSavedToken() {
-  try {
-    const data = JSON.parse(fs.readFileSync(getAuthFilePath(), "utf8"));
-    return data.token || null;
-  } catch {
-    return null;
-  }
 }
 
 function saveTokenToFile(token) {
@@ -32,7 +23,7 @@ function clearTokenFile() {
   } catch {}
 }
 
-// After each page load, sync the token from localStorage to file
+// Sync token from the page back to the file after each load
 async function syncTokenFromPage() {
   try {
     const token = await mainWindow.webContents.executeJavaScript(
@@ -45,6 +36,11 @@ async function syncTokenFromPage() {
     }
   } catch {}
 }
+
+// IPC: preload asks for userData path to read auth.json
+ipcMain.on("get-user-data-path", (event) => {
+  event.returnValue = app.getPath("userData");
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -62,34 +58,23 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
     },
     backgroundColor: "#07060e",
     show: false,
   });
 
-  const savedToken = readSavedToken();
-  const startUrl = savedToken
-    ? "https://useomnyx.com/dashboard"
-    : "https://useomnyx.com/login";
+  // Always load login — preload will inject the token if saved, and the
+  // login page's useEffect will redirect to /dashboard automatically
+  mainWindow.loadURL("https://useomnyx.com/login");
 
-  mainWindow.loadURL(startUrl);
-
-  // If we have a saved token, inject it into localStorage once the page loads
-  mainWindow.webContents.on("did-finish-load", async () => {
-    if (savedToken) {
-      try {
-        await mainWindow.webContents.executeJavaScript(
-          `localStorage.setItem("omnyx_token", ${JSON.stringify(savedToken)})`
-        );
-      } catch {}
-    }
-    // Always sync after load so we catch logouts too
-    await syncTokenFromPage();
+  // After every page load, save the current token state to file
+  mainWindow.webContents.on("did-finish-load", () => {
+    syncTokenFromPage();
   });
 
-  // Also sync on in-page navigation (SPA route changes)
-  mainWindow.webContents.on("did-navigate-in-page", async () => {
-    await syncTokenFromPage();
+  mainWindow.webContents.on("did-navigate-in-page", () => {
+    syncTokenFromPage();
   });
 
   mainWindow.once("ready-to-show", () => {
