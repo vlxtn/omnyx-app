@@ -31,6 +31,11 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
+    // Rediriger vers dashboard si déjà connecté
+    mainWindow.webContents.executeJavaScript(`
+      const token = localStorage.getItem('omnyx_token');
+      if (token) window.location.href = 'https://useomnyx.com/dashboard';
+    `).catch(() => {});
   });
 
   // Masquer dans la barre des tâches au lieu de fermer
