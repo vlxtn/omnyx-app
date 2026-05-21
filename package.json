@@ -26,7 +26,8 @@
     "publish": {
       "provider": "github",
       "owner": "vlxtn",
-      "repo": "omnyx-app"
+      "repo": "omnyx-app",
+      "releaseType": "release"
     },
     "win": {
       "target": [
