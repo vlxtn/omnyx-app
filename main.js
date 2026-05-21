@@ -11,6 +11,15 @@ function getAuthFilePath() {
   return path.join(app.getPath("userData"), "auth.json");
 }
 
+function readSavedToken() {
+  try {
+    const data = JSON.parse(fs.readFileSync(getAuthFilePath(), "utf8"));
+    return data.token || null;
+  } catch {
+    return null;
+  }
+}
+
 function saveTokenToFile(token) {
   try {
     fs.writeFileSync(getAuthFilePath(), JSON.stringify({ token }), "utf8");
@@ -23,18 +32,19 @@ function clearTokenFile() {
   } catch {}
 }
 
-// Only SAVES the token — never deletes. Deletion is handled via webRequest (401) and logout detection.
-async function syncTokenFromPage() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  try {
-    const token = await mainWindow.webContents.executeJavaScript(
-      `localStorage.getItem("omnyx_token")`
-    );
-    if (token) saveTokenToFile(token);
-  } catch {}
+// preload.js must be outside the asar archive to be loadable
+function getPreloadPath() {
+  return path.join(__dirname, "preload.js").replace("app.asar", "app.asar.unpacked");
 }
 
 function createWindow() {
+  // Decide start URL at launch time — go directly to dashboard if we have a saved token.
+  // The preload will inject the token into localStorage before the page JS runs.
+  const savedToken = readSavedToken();
+  const startUrl = savedToken
+    ? "https://useomnyx.com/dashboard"
+    : "https://useomnyx.com/login";
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -50,54 +60,47 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
+      preload: getPreloadPath(),
       additionalArguments: [`--user-data-path=${encodeURIComponent(app.getPath("userData"))}`],
     },
     backgroundColor: "#07060e",
     show: false,
   });
 
-  mainWindow.loadURL("https://useomnyx.com/login");
+  mainWindow.loadURL(startUrl);
 
-  // Clear auth.json when backend returns 401 (expired/invalid token)
-  // This fires BEFORE the page's JS interceptor redirects, so the preload
-  // won't re-inject the invalid token on the next load.
-  mainWindow.webContents.session.webRequest.onCompleted(
-    { urls: ["*://omnyx-backend-production.up.railway.app/*"] },
-    (details) => {
-      if (details.statusCode === 401) {
-        clearTokenFile();
-      }
-    }
-  );
-
-  // Save token on full page loads
-  mainWindow.webContents.on("did-finish-load", () => {
-    syncTokenFromPage();
-  });
-
-  // Detect SPA navigation to /login (true logout via Next.js router)
+  // Save token immediately when the user reaches the dashboard (post-login SPA navigation)
   mainWindow.webContents.on("did-navigate-in-page", (event, url) => {
+    if (url.includes("/dashboard")) {
+      mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
+        .then(token => { if (token) saveTokenToFile(token); })
+        .catch(() => {});
+    }
+    // True logout: user navigated to /login with no token
     if (url.includes("/login")) {
-      setTimeout(async () => {
-        try {
-          const token = await mainWindow.webContents.executeJavaScript(
-            `localStorage.getItem("omnyx_token")`
-          );
-          if (!token) clearTokenFile();
-        } catch {}
+      setTimeout(() => {
+        mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
+          .then(token => { if (!token) clearTokenFile(); })
+          .catch(() => {});
       }, 300);
     }
   });
 
-  // Poll every 5 seconds to save the token (catches post-login SPA navigations)
-  const pollInterval = setInterval(() => {
-    syncTokenFromPage();
-  }, 5000);
-
-  mainWindow.on("closed", () => {
-    clearInterval(pollInterval);
+  // Save token on full page load (covers first load of /dashboard when starting directly there)
+  mainWindow.webContents.on("did-finish-load", () => {
+    mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
+      .then(token => { if (token) saveTokenToFile(token); })
+      .catch(() => {});
   });
+
+  // Detect 401 from backend → clear auth.json BEFORE the page redirects to /login,
+  // so the preload won't re-inject an invalid token on the next load.
+  mainWindow.webContents.session.webRequest.onCompleted(
+    { urls: ["*://omnyx-backend-production.up.railway.app/*"] },
+    (details) => {
+      if (details.statusCode === 401) clearTokenFile();
+    }
+  );
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
