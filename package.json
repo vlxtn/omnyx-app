@@ -36,7 +36,8 @@
           ]
         }
       ],
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "artifactName": "Omnyx-Setup.exe"
     },
     "nsis": {
       "oneClick": true,
@@ -55,7 +56,8 @@
         }
       ],
       "icon": "assets/icon.png",
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "artifactName": "Omnyx-${arch}.dmg"
     }
   },
   "devDependencies": {
