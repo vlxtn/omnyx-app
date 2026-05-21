@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog } = require("electron");
+const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog, session } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
@@ -6,6 +6,8 @@ const path = require("path");
 let mainWindow;
 let tray;
 let isQuitting = false;
+const COOKIE_URL = "https://useomnyx.com";
+const COOKIE_NAME = "omnyx_electron_token";
 
 function getAuthFilePath() {
   return path.join(app.getPath("userData"), "auth.json");
@@ -27,23 +29,38 @@ function saveTokenToFile(token) {
 }
 
 function clearTokenFile() {
+  try { fs.unlinkSync(getAuthFilePath()); } catch {}
+}
+
+async function persistToken(token) {
+  saveTokenToFile(token);
   try {
-    fs.unlinkSync(getAuthFilePath());
+    await session.defaultSession.cookies.set({
+      url: COOKIE_URL,
+      name: COOKIE_NAME,
+      value: encodeURIComponent(token),
+      httpOnly: false,
+      secure: true,
+      sameSite: "no_restriction",
+      expirationDate: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    });
   } catch {}
 }
 
-// preload.js must be outside the asar archive to be loadable
-function getPreloadPath() {
-  return path.join(__dirname, "preload.js").replace("app.asar", "app.asar.unpacked");
+async function clearPersistedToken() {
+  clearTokenFile();
+  try {
+    await session.defaultSession.cookies.remove(COOKIE_URL, COOKIE_NAME);
+  } catch {}
 }
 
-function createWindow() {
-  // Decide start URL at launch time — go directly to dashboard if we have a saved token.
-  // The preload will inject the token into localStorage before the page JS runs.
+async function createWindow() {
   const savedToken = readSavedToken();
-  const startUrl = savedToken
-    ? "https://useomnyx.com/dashboard"
-    : "https://useomnyx.com/login";
+
+  // Set the cookie BEFORE loading the URL so the page's JS can read it immediately
+  if (savedToken) {
+    await persistToken(savedToken);
+  }
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -60,45 +77,43 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: getPreloadPath(),
-      additionalArguments: [`--user-data-path=${encodeURIComponent(app.getPath("userData"))}`],
     },
     backgroundColor: "#07060e",
     show: false,
   });
 
-  mainWindow.loadURL(startUrl);
+  // Go directly to dashboard if we have a token — the cookie will authenticate the session
+  mainWindow.loadURL(savedToken ? `${COOKIE_URL}/dashboard` : `${COOKIE_URL}/login`);
 
-  // Save token immediately when the user reaches the dashboard (post-login SPA navigation)
+  // After navigating to dashboard (post-login), persist the fresh token
   mainWindow.webContents.on("did-navigate-in-page", (event, url) => {
     if (url.includes("/dashboard")) {
       mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
-        .then(token => { if (token) saveTokenToFile(token); })
+        .then(token => { if (token) persistToken(token); })
         .catch(() => {});
     }
-    // True logout: user navigated to /login with no token
+    // User logged out (navigated to /login with no token)
     if (url.includes("/login")) {
       setTimeout(() => {
         mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
-          .then(token => { if (!token) clearTokenFile(); })
+          .then(token => { if (!token) clearPersistedToken(); })
           .catch(() => {});
       }, 300);
     }
   });
 
-  // Save token on full page load (covers first load of /dashboard when starting directly there)
+  // Also persist on full page load (catches /dashboard loaded directly at startup)
   mainWindow.webContents.on("did-finish-load", () => {
     mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
-      .then(token => { if (token) saveTokenToFile(token); })
+      .then(token => { if (token) persistToken(token); })
       .catch(() => {});
   });
 
-  // Detect 401 from backend → clear auth.json BEFORE the page redirects to /login,
-  // so the preload won't re-inject an invalid token on the next load.
+  // 401 from backend → clear everything so the preload/cookie don't re-inject a bad token
   mainWindow.webContents.session.webRequest.onCompleted(
     { urls: ["*://omnyx-backend-production.up.railway.app/*"] },
     (details) => {
-      if (details.statusCode === 401) clearTokenFile();
+      if (details.statusCode === 401) clearPersistedToken();
     }
   );
 
@@ -114,7 +129,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (!url.startsWith("https://useomnyx.com")) {
+    if (!url.startsWith(COOKIE_URL)) {
       shell.openExternal(url);
       return { action: "deny" };
     }
@@ -144,9 +159,9 @@ function createTray() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
-  createWindow();
+  await createWindow();
   createTray();
 
   autoUpdater.checkForUpdatesAndNotify();
