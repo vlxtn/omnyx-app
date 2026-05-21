@@ -19,9 +19,23 @@
       "output": "dist",
       "buildResources": "assets"
     },
-    "files": ["main.js"],
+    "files": [
+      "main.js"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "vlxtn",
+      "repo": "omnyx-app"
+    },
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon.png"
     },
     "nsis": {
@@ -31,7 +45,15 @@
       "shortcutName": "Omnyx"
     },
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "icon": "assets/icon.png",
       "category": "public.app-category.productivity"
     }
@@ -39,5 +61,8 @@
   "devDependencies": {
     "electron": "^42.2.0",
     "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }

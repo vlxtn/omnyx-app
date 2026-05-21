@@ -1,4 +1,5 @@
-const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage } = require("electron");
+const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const path = require("path");
 
 let mainWindow;
@@ -76,6 +77,19 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   createWindow();
   createTray();
+
+  // Auto-update
+  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.on("update-downloaded", () => {
+    dialog.showMessageBox({
+      type: "info",
+      title: "Mise à jour disponible",
+      message: "Une nouvelle version d'Omnyx est prête. Elle sera installée au prochain démarrage.",
+      buttons: ["Redémarrer maintenant", "Plus tard"],
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall();
+    });
+  });
 
   // Raccourci global Ctrl+Shift+Space
   globalShortcut.register("Control+Shift+Space", () => {
