@@ -23,7 +23,7 @@ function createWindow() {
     show: false,
   });
 
-  mainWindow.loadURL("https://useomnyx.com");
+  mainWindow.loadURL("https://useomnyx.com/login");
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
