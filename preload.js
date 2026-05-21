@@ -1,13 +1,15 @@
-const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
-// Inject saved token into localStorage BEFORE any page JavaScript runs
-try {
-  const userDataPath = ipcRenderer.sendSync("get-user-data-path");
-  const raw = fs.readFileSync(path.join(userDataPath, "auth.json"), "utf8");
-  const token = JSON.parse(raw).token;
-  if (token) {
-    localStorage.setItem("omnyx_token", token);
-  }
-} catch {}
+// userData path is passed from main process via additionalArguments
+const arg = process.argv.find(a => a.startsWith("--user-data-path="));
+const userDataPath = arg ? arg.slice("--user-data-path=".length) : null;
+
+if (userDataPath) {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(userDataPath, "auth.json"), "utf8"));
+    if (data.token) {
+      localStorage.setItem("omnyx_token", data.token);
+    }
+  } catch {}
+}

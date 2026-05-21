@@ -17,51 +17,20 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: npm install --global electron-builder
-      - run: electron-builder --win --publish never
+      - run: npx electron-builder --win --publish always
         env:
-          DEBUG: electron-builder
-      - uses: actions/upload-artifact@v4
-        with:
-          name: omnyx-windows
-          path: dist/*.exe
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-mac:
     runs-on: macos-latest
+    needs: [build-windows]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - run: npm install
-      - run: npm install --global electron-builder
-      - run: electron-builder --mac --publish never
+      - run: npx electron-builder --mac --publish always
         env:
-          DEBUG: electron-builder
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - uses: actions/upload-artifact@v4
-        with:
-          name: omnyx-mac
-          path: dist/*.dmg
-
-  release:
-    needs: [build-windows, build-mac]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: omnyx-windows
-          path: ./release
-      - uses: actions/download-artifact@v4
-        with:
-          name: omnyx-mac
-          path: ./release
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: Omnyx Latest
-          files: ./release/*
-          make_latest: true
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

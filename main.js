@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
@@ -23,8 +23,8 @@ function clearTokenFile() {
   } catch {}
 }
 
-// Sync token from the page back to the file after each load
 async function syncTokenFromPage() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
   try {
     const token = await mainWindow.webContents.executeJavaScript(
       `localStorage.getItem("omnyx_token")`
@@ -36,11 +36,6 @@ async function syncTokenFromPage() {
     }
   } catch {}
 }
-
-// IPC: preload asks for userData path to read auth.json
-ipcMain.on("get-user-data-path", (event) => {
-  event.returnValue = app.getPath("userData");
-});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -59,22 +54,28 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, "preload.js"),
+      // Pass userData path so preload can read auth.json without IPC
+      additionalArguments: [`--user-data-path=${app.getPath("userData")}`],
     },
     backgroundColor: "#07060e",
     show: false,
   });
 
-  // Always load login — preload will inject the token if saved, and the
-  // login page's useEffect will redirect to /dashboard automatically
   mainWindow.loadURL("https://useomnyx.com/login");
 
-  // After every page load, save the current token state to file
+  // Sync token on every full page load
   mainWindow.webContents.on("did-finish-load", () => {
     syncTokenFromPage();
   });
 
-  mainWindow.webContents.on("did-navigate-in-page", () => {
+  // Poll every 4 seconds to catch SPA navigations (login → dashboard)
+  // where did-finish-load doesn't fire
+  const pollInterval = setInterval(() => {
     syncTokenFromPage();
+  }, 4000);
+
+  mainWindow.on("closed", () => {
+    clearInterval(pollInterval);
   });
 
   mainWindow.once("ready-to-show", () => {

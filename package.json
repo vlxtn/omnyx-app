@@ -1,6 +1,6 @@
 {
   "name": "omnyx-app",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Omnyx — Your AI Operating System",
   "main": "main.js",
   "author": "Valentin Puc-Dubois",
@@ -20,7 +20,8 @@
       "buildResources": "assets"
     },
     "files": [
-      "main.js"
+      "main.js",
+      "preload.js"
     ],
     "publish": {
       "provider": "github",
