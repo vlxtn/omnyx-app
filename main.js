@@ -1,10 +1,50 @@
 const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const fs = require("fs");
 const path = require("path");
 
 let mainWindow;
 let tray;
 let isQuitting = false;
+
+function getAuthFilePath() {
+  return path.join(app.getPath("userData"), "auth.json");
+}
+
+function readSavedToken() {
+  try {
+    const data = JSON.parse(fs.readFileSync(getAuthFilePath(), "utf8"));
+    return data.token || null;
+  } catch {
+    return null;
+  }
+}
+
+function saveTokenToFile(token) {
+  try {
+    fs.writeFileSync(getAuthFilePath(), JSON.stringify({ token }), "utf8");
+  } catch {}
+}
+
+function clearTokenFile() {
+  try {
+    fs.unlinkSync(getAuthFilePath());
+  } catch {}
+}
+
+// After each page load, sync the token from localStorage to file
+async function syncTokenFromPage() {
+  try {
+    const token = await mainWindow.webContents.executeJavaScript(
+      `localStorage.getItem("omnyx_token")`
+    );
+    if (token) {
+      saveTokenToFile(token);
+    } else {
+      clearTokenFile();
+    }
+  } catch {}
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -27,13 +67,35 @@ function createWindow() {
     show: false,
   });
 
-  mainWindow.loadURL("https://useomnyx.com/login");
+  const savedToken = readSavedToken();
+  const startUrl = savedToken
+    ? "https://useomnyx.com/dashboard"
+    : "https://useomnyx.com/login";
+
+  mainWindow.loadURL(startUrl);
+
+  // If we have a saved token, inject it into localStorage once the page loads
+  mainWindow.webContents.on("did-finish-load", async () => {
+    if (savedToken) {
+      try {
+        await mainWindow.webContents.executeJavaScript(
+          `localStorage.setItem("omnyx_token", ${JSON.stringify(savedToken)})`
+        );
+      } catch {}
+    }
+    // Always sync after load so we catch logouts too
+    await syncTokenFromPage();
+  });
+
+  // Also sync on in-page navigation (SPA route changes)
+  mainWindow.webContents.on("did-navigate-in-page", async () => {
+    await syncTokenFromPage();
+  });
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
   });
 
-  // Masquer dans la barre des tâches au lieu de fermer
   mainWindow.on("close", (e) => {
     if (!isQuitting) {
       e.preventDefault();
@@ -41,7 +103,6 @@ function createWindow() {
     }
   });
 
-  // Ouvre les liens externes dans le navigateur
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith("https://useomnyx.com")) {
       shell.openExternal(url);
@@ -78,7 +139,6 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 
-  // Auto-update
   autoUpdater.checkForUpdatesAndNotify();
   autoUpdater.on("update-downloaded", () => {
     dialog.showMessageBox({
@@ -91,7 +151,6 @@ app.whenReady().then(() => {
     });
   });
 
-  // Raccourci global Ctrl+Shift+Space
   globalShortcut.register("Control+Shift+Space", () => {
     if (mainWindow.isVisible() && mainWindow.isFocused()) {
       mainWindow.hide();
