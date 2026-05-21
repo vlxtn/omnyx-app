@@ -55,7 +55,7 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, "preload.js"),
       // Pass userData path so preload can read auth.json without IPC
-      additionalArguments: [`--user-data-path=${app.getPath("userData")}`],
+      additionalArguments: [`--user-data-path=${encodeURIComponent(app.getPath("userData"))}`],
     },
     backgroundColor: "#07060e",
     show: false,
