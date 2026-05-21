@@ -23,17 +23,14 @@ function clearTokenFile() {
   } catch {}
 }
 
+// Only SAVES the token — never deletes. Deletion is handled via webRequest (401) and logout detection.
 async function syncTokenFromPage() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   try {
     const token = await mainWindow.webContents.executeJavaScript(
       `localStorage.getItem("omnyx_token")`
     );
-    if (token) {
-      saveTokenToFile(token);
-    } else {
-      clearTokenFile();
-    }
+    if (token) saveTokenToFile(token);
   } catch {}
 }
 
@@ -54,7 +51,6 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, "preload.js"),
-      // Pass userData path so preload can read auth.json without IPC
       additionalArguments: [`--user-data-path=${encodeURIComponent(app.getPath("userData"))}`],
     },
     backgroundColor: "#07060e",
@@ -63,16 +59,41 @@ function createWindow() {
 
   mainWindow.loadURL("https://useomnyx.com/login");
 
-  // Sync token on every full page load
+  // Clear auth.json when backend returns 401 (expired/invalid token)
+  // This fires BEFORE the page's JS interceptor redirects, so the preload
+  // won't re-inject the invalid token on the next load.
+  mainWindow.webContents.session.webRequest.onCompleted(
+    { urls: ["*://omnyx-backend-production.up.railway.app/*"] },
+    (details) => {
+      if (details.statusCode === 401) {
+        clearTokenFile();
+      }
+    }
+  );
+
+  // Save token on full page loads
   mainWindow.webContents.on("did-finish-load", () => {
     syncTokenFromPage();
   });
 
-  // Poll every 4 seconds to catch SPA navigations (login → dashboard)
-  // where did-finish-load doesn't fire
+  // Detect SPA navigation to /login (true logout via Next.js router)
+  mainWindow.webContents.on("did-navigate-in-page", (event, url) => {
+    if (url.includes("/login")) {
+      setTimeout(async () => {
+        try {
+          const token = await mainWindow.webContents.executeJavaScript(
+            `localStorage.getItem("omnyx_token")`
+          );
+          if (!token) clearTokenFile();
+        } catch {}
+      }, 300);
+    }
+  });
+
+  // Poll every 5 seconds to save the token (catches post-login SPA navigations)
   const pollInterval = setInterval(() => {
     syncTokenFromPage();
-  }, 4000);
+  }, 5000);
 
   mainWindow.on("closed", () => {
     clearInterval(pollInterval);
