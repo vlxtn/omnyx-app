@@ -14,9 +14,10 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: npm run dist:win
+      - run: npm install --global electron-builder
+      - run: electron-builder --win --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBUG: electron-builder
       - uses: actions/upload-artifact@v4
         with:
           name: omnyx-windows
@@ -30,9 +31,10 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: npm run dist:mac
+      - run: npm install --global electron-builder
+      - run: electron-builder --mac --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBUG: electron-builder
           CSC_IDENTITY_AUTO_DISCOVERY: false
       - uses: actions/upload-artifact@v4
         with:
