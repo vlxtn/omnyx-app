@@ -1,7 +1,4 @@
 const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage } = require("electron");
-
-// Supprimer le menu natif
-Menu.setApplicationMenu(null);
 const path = require("path");
 
 let mainWindow;
@@ -15,6 +12,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     icon: path.join(__dirname, "assets", "icon.png"),
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -70,6 +68,7 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   createWindow();
   createTray();
 
