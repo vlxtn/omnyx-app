@@ -20,7 +20,8 @@
       "buildResources": "assets"
     },
     "files": [
-      "main.js"
+      "main.js",
+      "preload.js"
     ],
     "publish": {
       "provider": "github",
@@ -38,7 +39,13 @@
         }
       ],
       "icon": "assets/icon.png",
-      "artifactName": "Omnyx-Setup.exe"
+      "artifactName": "Omnyx-Setup.exe",
+      "extraResources": [
+        {
+          "from": "companion-setup.exe",
+          "to": "companion-setup.exe"
+        }
+      ]
     },
     "nsis": {
       "oneClick": true,

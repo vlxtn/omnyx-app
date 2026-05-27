@@ -1,5 +1,6 @@
 const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog, session } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const { execFile } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -54,10 +55,20 @@ async function clearPersistedToken() {
   } catch {}
 }
 
+function installCompanionIfNeeded() {
+  const markerPath = path.join(app.getPath("userData"), "companion-installed");
+  if (fs.existsSync(markerPath)) return;
+
+  const companionSetup = path.join(process.resourcesPath, "companion-setup.exe");
+  if (!fs.existsSync(companionSetup)) return;
+
+  execFile(companionSetup, [], { detached: true, windowsHide: true }, () => {});
+  fs.writeFileSync(markerPath, "1");
+}
+
 async function createWindow() {
   const savedToken = readSavedToken();
 
-  // Set the cookie BEFORE loading the URL so the page's JS can read it immediately
   if (savedToken) {
     await persistToken(savedToken);
   }
@@ -82,17 +93,14 @@ async function createWindow() {
     show: false,
   });
 
-  // Go directly to dashboard if we have a token — the cookie will authenticate the session
   mainWindow.loadURL(savedToken ? `${COOKIE_URL}/dashboard` : `${COOKIE_URL}/login`);
 
-  // After navigating to dashboard (post-login), persist the fresh token
   mainWindow.webContents.on("did-navigate-in-page", (event, url) => {
     if (url.includes("/dashboard")) {
       mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
         .then(token => { if (token) persistToken(token); })
         .catch(() => {});
     }
-    // User logged out (navigated to /login with no token)
     if (url.includes("/login")) {
       setTimeout(() => {
         mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
@@ -102,14 +110,12 @@ async function createWindow() {
     }
   });
 
-  // Also persist on full page load (catches /dashboard loaded directly at startup)
   mainWindow.webContents.on("did-finish-load", () => {
     mainWindow.webContents.executeJavaScript(`localStorage.getItem("omnyx_token")`)
       .then(token => { if (token) persistToken(token); })
       .catch(() => {});
   });
 
-  // 401 from backend → clear everything so the preload/cookie don't re-inject a bad token
   mainWindow.webContents.session.webRequest.onCompleted(
     { urls: ["*://omnyx-backend-production.up.railway.app/*"] },
     (details) => {
@@ -140,7 +146,7 @@ async function createWindow() {
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, "assets", "icon.png")).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
-  tray.setToolTip("Omnyx — Ctrl+Shift+Space");
+  tray.setToolTip("Omnyx");
 
   const menu = Menu.buildFromTemplate([
     { label: "Ouvrir Omnyx", click: () => { mainWindow.show(); mainWindow.focus(); } },
@@ -163,6 +169,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   await createWindow();
   createTray();
+  installCompanionIfNeeded();
 
   autoUpdater.checkForUpdatesAndNotify();
   autoUpdater.on("update-downloaded", () => {
@@ -174,15 +181,6 @@ app.whenReady().then(async () => {
     }).then(({ response }) => {
       if (response === 0) autoUpdater.quitAndInstall();
     });
-  });
-
-  globalShortcut.register("Control+Shift+Space", () => {
-    if (mainWindow.isVisible() && mainWindow.isFocused()) {
-      mainWindow.hide();
-    } else {
-      mainWindow.show();
-      mainWindow.focus();
-    }
   });
 
   app.on("activate", () => {

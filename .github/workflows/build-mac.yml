@@ -2,24 +2,40 @@ name: Build Mac App
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-mac:
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Download latest companion installer
+        run: |
+          RELEASE=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/vlxtn/omnyx-desktop/releases/latest")
+          ASSET_URL=$(echo "$RELEASE" | python3 -c "import sys,json; assets=json.load(sys.stdin)['assets']; print(next(a['browser_download_url'] for a in assets if a['name'].endswith('.dmg')))")
+          echo "Downloading companion: $ASSET_URL"
+          curl -L -H "Authorization: Bearer $GH_TOKEN" "$ASSET_URL" -o companion-setup.dmg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Mac app
         run: npm run dist:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
