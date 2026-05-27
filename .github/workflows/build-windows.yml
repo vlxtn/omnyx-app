@@ -23,12 +23,7 @@ jobs:
         run: npm ci
 
       - name: Download latest companion installer
-        run: |
-          $release = Invoke-RestMethod "https://api.github.com/repos/vlxtn/omnyx-desktop/releases/latest" -Headers @{ Authorization = "Bearer $env:GH_TOKEN" }
-          $asset = $release.assets | Where-Object { $_.name -like "*.exe" -and $_.name -notlike "*.blockmap" } | Select-Object -First 1
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "companion-setup.exe" -Headers @{ Authorization = "Bearer $env:GH_TOKEN" }
-          Write-Host "Downloaded companion: $($asset.name)"
-        shell: powershell
+        run: gh release download --repo vlxtn/omnyx-desktop --pattern "*Setup*.exe" --skip-existing --output companion-setup.exe
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
