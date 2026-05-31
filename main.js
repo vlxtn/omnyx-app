@@ -90,7 +90,7 @@ async function createWindow() {
       contextIsolation: true,
     },
     backgroundColor: "#07060e",
-    show: false,
+    show: true,
   });
 
   mainWindow.loadURL(savedToken ? `${COOKIE_URL}/dashboard` : `${COOKIE_URL}/login`);
@@ -123,9 +123,6 @@ async function createWindow() {
     }
   );
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
-  });
 
   mainWindow.on("close", (e) => {
     if (!isQuitting) {
@@ -171,7 +168,8 @@ app.whenReady().then(async () => {
   createTray();
   installCompanionIfNeeded();
 
-  autoUpdater.checkForUpdatesAndNotify();
+  // Décaler la vérification des mises à jour pour ne pas ralentir le démarrage
+  setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 5000);
   autoUpdater.on("update-downloaded", () => {
     dialog.showMessageBox({
       type: "info",
