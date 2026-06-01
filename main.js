@@ -168,6 +168,10 @@ app.whenReady().then(async () => {
   createTray();
   installCompanionIfNeeded();
 
+  globalShortcut.register("Control+R", () => mainWindow?.webContents.reload());
+  globalShortcut.register("Control+Shift+R", () => mainWindow?.webContents.reloadIgnoringCache());
+  globalShortcut.register("Control+Shift+I", () => mainWindow?.webContents.toggleDevTools());
+
   // Décaler la vérification des mises à jour pour ne pas ralentir le démarrage
   setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 5000);
   autoUpdater.on("update-downloaded", () => {
