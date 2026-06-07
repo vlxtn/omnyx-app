@@ -1,6 +1,7 @@
 const { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage, dialog, session } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { execFile } = require("child_process");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 
@@ -55,16 +56,51 @@ async function clearPersistedToken() {
   } catch {}
 }
 
-function installCompanionIfNeeded() {
+function downloadFile(url, dest, redirects = 5) {
+  return new Promise((resolve, reject) => {
+    if (redirects === 0) return reject(new Error("Too many redirects"));
+    https.get(url, { headers: { "User-Agent": "Omnyx-App" } }, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        return downloadFile(res.headers.location, dest, redirects - 1).then(resolve).catch(reject);
+      }
+      if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
+      const file = fs.createWriteStream(dest);
+      res.pipe(file);
+      file.on("finish", () => file.close(resolve));
+      file.on("error", reject);
+    }).on("error", reject);
+  });
+}
+
+async function installCompanionIfNeeded() {
   const markerPath = path.join(app.getPath("userData"), "companion-installed");
   if (fs.existsSync(markerPath)) return;
 
-  const companionSetup = path.join(process.resourcesPath, "companion-setup.exe");
-  const stat = fs.existsSync(companionSetup) ? fs.statSync(companionSetup) : null;
-  if (!stat || stat.size === 0) return; // fichier absent ou vide (placeholder CI)
+  const tmpPath = path.join(app.getPath("temp"), "omnyx-companion-setup.exe");
 
-  execFile(companionSetup, [], { detached: true }, (err) => {
-    if (!err) fs.writeFileSync(markerPath, "1"); // marker seulement si succès
+  // Essaie d'abord le fichier bundlé
+  const bundled = path.join(process.resourcesPath, "companion-setup.exe");
+  const bundledStat = fs.existsSync(bundled) ? fs.statSync(bundled) : null;
+
+  let setupPath = null;
+  if (bundledStat && bundledStat.size > 10000) {
+    setupPath = bundled;
+  } else {
+    // Télécharge depuis GitHub releases
+    try {
+      await downloadFile(
+        "https://github.com/vlxtn/omnyx-desktop/releases/latest/download/Omnyx-Setup.exe",
+        tmpPath
+      );
+      const size = fs.statSync(tmpPath).size;
+      if (size > 10000) setupPath = tmpPath;
+    } catch {}
+  }
+
+  if (!setupPath) return;
+
+  execFile(setupPath, ["/S"], { detached: true }, (err) => {
+    if (!err) fs.writeFileSync(markerPath, "1");
   });
 }
 
@@ -168,7 +204,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   await createWindow();
   createTray();
-  installCompanionIfNeeded();
+  installCompanionIfNeeded(); // async, pas besoin d'attendre
 
   globalShortcut.register("Control+R", () => mainWindow?.webContents.reload());
   globalShortcut.register("Control+Shift+R", () => mainWindow?.webContents.reloadIgnoringCache());
