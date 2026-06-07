@@ -99,7 +99,17 @@ async function installCompanionIfNeeded() {
 
   if (!setupPath) return;
 
-  execFile(setupPath, ["/S"], { detached: true }, (err) => {
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: "Installer le compagnon Omnyx",
+    message: "Le compagnon Omnyx (barre système) va s'installer maintenant.",
+    buttons: ["Installer", "Plus tard"],
+    defaultId: 0,
+  });
+
+  if (response !== 0) return;
+
+  execFile(setupPath, [], { detached: true }, (err) => {
     if (!err) fs.writeFileSync(markerPath, "1");
   });
 }
