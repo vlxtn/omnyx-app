@@ -22,14 +22,17 @@ jobs:
         run: npm ci
 
       - name: Download latest companion installer
-        run: gh release download --latest --repo vlxtn/omnyx-desktop --pattern "Omnyx-Setup.exe" --output companion-setup.exe
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create companion placeholder if download failed
         shell: pwsh
-        run: if (!(Test-Path companion-setup.exe)) { [System.IO.File]::WriteAllBytes("companion-setup.exe", @()) }
+        run: |
+          try {
+            $url = "https://github.com/vlxtn/omnyx-desktop/releases/latest/download/Omnyx-Setup.exe"
+            Invoke-WebRequest -Uri $url -OutFile companion-setup.exe -UseBasicParsing
+            $size = (Get-Item companion-setup.exe).Length
+            Write-Host "companion-setup.exe downloaded: $size bytes"
+          } catch {
+            Write-Host "Download failed, creating placeholder"
+            [System.IO.File]::WriteAllBytes("companion-setup.exe", @())
+          }
 
       - name: Publish Windows
         run: npx electron-builder --win --publish always

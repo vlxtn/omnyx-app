@@ -60,10 +60,12 @@ function installCompanionIfNeeded() {
   if (fs.existsSync(markerPath)) return;
 
   const companionSetup = path.join(process.resourcesPath, "companion-setup.exe");
-  if (!fs.existsSync(companionSetup)) return;
+  const stat = fs.existsSync(companionSetup) ? fs.statSync(companionSetup) : null;
+  if (!stat || stat.size === 0) return; // fichier absent ou vide (placeholder CI)
 
-  execFile(companionSetup, [], { detached: true, windowsHide: true }, () => {});
-  fs.writeFileSync(markerPath, "1");
+  execFile(companionSetup, [], { detached: true }, (err) => {
+    if (!err) fs.writeFileSync(markerPath, "1"); // marker seulement si succès
+  });
 }
 
 async function createWindow() {
