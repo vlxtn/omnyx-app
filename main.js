@@ -72,9 +72,18 @@ function downloadFile(url, dest, redirects = 5) {
   });
 }
 
+function isCompanionInstalled() {
+  const local = process.env.LOCALAPPDATA || "";
+  const locations = [
+    path.join(local, "Programs", "Omnyx Companion", "Omnyx Companion.exe"),
+    path.join("C:\\Program Files", "Omnyx Companion", "Omnyx Companion.exe"),
+    path.join("C:\\Program Files (x86)", "Omnyx Companion", "Omnyx Companion.exe"),
+  ];
+  return locations.some(p => fs.existsSync(p));
+}
+
 async function installCompanionIfNeeded() {
-  const markerPath = path.join(app.getPath("userData"), "companion-installed");
-  if (fs.existsSync(markerPath)) return;
+  if (isCompanionInstalled()) return;
 
   const tmpPath = path.join(app.getPath("temp"), "omnyx-companion-setup.exe");
 
@@ -109,9 +118,7 @@ async function installCompanionIfNeeded() {
 
   if (response !== 0) return;
 
-  execFile(setupPath, [], { detached: true }, (err) => {
-    if (!err) fs.writeFileSync(markerPath, "1");
-  });
+  execFile(setupPath, [], { detached: true }, () => {});
 }
 
 async function createWindow() {
