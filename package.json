@@ -1,6 +1,6 @@
 {
   "name": "omnyx-app",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Omnyx — Your AI Operating System",
   "main": "main.js",
   "author": "Valentin Puc-Dubois",
@@ -51,7 +51,8 @@
       "oneClick": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Omnyx"
+      "shortcutName": "Omnyx",
+      "include": "installer.nsh"
     },
     "mac": {
       "target": [
