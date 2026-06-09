@@ -55,23 +55,37 @@ async function clearPersistedToken() {
   } catch {}
 }
 
-function isCompanionInstalled() {
+function getCompanionExe() {
   const local = process.env.LOCALAPPDATA || "";
   const locations = [
     path.join(local, "Programs", "Omnyx Companion", "Omnyx Companion.exe"),
     path.join("C:\\Program Files", "Omnyx Companion", "Omnyx Companion.exe"),
   ];
-  return locations.some(p => fs.existsSync(p));
+  return locations.find(p => fs.existsSync(p)) || null;
+}
+
+function launchCompanion() {
+  const exe = getCompanionExe();
+  if (exe) execFile(exe, [], { detached: true }, () => {});
 }
 
 function installCompanionIfNeeded() {
-  if (isCompanionInstalled()) return;
+  const exe = getCompanionExe();
+
+  if (exe) {
+    // Installé — on le lance au cas où il ne tourne pas
+    launchCompanion();
+    return;
+  }
 
   const bundled = path.join(process.resourcesPath, "companion-setup.exe");
   const stat = fs.existsSync(bundled) ? fs.statSync(bundled) : null;
   if (!stat || stat.size < 10000) return;
 
-  execFile(bundled, ["/S"], { detached: true }, () => {});
+  // Install silencieuse puis lancement
+  execFile(bundled, ["/S"], { detached: true }, () => {
+    setTimeout(() => launchCompanion(), 3000);
+  });
 }
 
 async function createWindow() {
