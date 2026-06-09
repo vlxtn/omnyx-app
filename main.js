@@ -70,21 +70,35 @@ function launchCompanion() {
 }
 
 function installCompanionIfNeeded() {
+  const logPath = path.join(app.getPath("userData"), "companion-debug.log");
+  const log = (msg) => { try { fs.appendFileSync(logPath, `${new Date().toISOString()} ${msg}\n`); } catch {} };
+
   const exe = getCompanionExe();
+  log(`getCompanionExe: ${exe}`);
 
   if (exe) {
-    // Installé — on le lance au cas où il ne tourne pas
+    log("Companion trouvé, lancement...");
     launchCompanion();
     return;
   }
 
   const bundled = path.join(process.resourcesPath, "companion-setup.exe");
   const stat = fs.existsSync(bundled) ? fs.statSync(bundled) : null;
-  if (!stat || stat.size < 10000) return;
+  log(`Bundled: exists=${!!stat}, size=${stat ? stat.size : 0}, path=${bundled}`);
 
-  // Install silencieuse puis lancement
-  execFile(bundled, ["/S"], { detached: true }, () => {
-    setTimeout(() => launchCompanion(), 3000);
+  if (!stat || stat.size < 10000) {
+    log("Fichier bundlé absent ou trop petit — abandon");
+    return;
+  }
+
+  log("Lancement de l'installeur compagnon...");
+  execFile(bundled, [], { detached: true }, (err) => {
+    log(`Installeur terminé: err=${err}`);
+    setTimeout(() => {
+      const after = getCompanionExe();
+      log(`Après install, exe trouvé: ${after}`);
+      launchCompanion();
+    }, 4000);
   });
 }
 
