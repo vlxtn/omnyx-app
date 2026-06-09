@@ -26,10 +26,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.COMPANION_TOKEN }}
         run: |
-          gh release download --latest --repo vlxtn/omnyx-desktop --pattern "Omnyx-Setup.exe" --output companion-setup.exe --clobber
-          $size = (Get-Item companion-setup.exe).Length
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; "X-GitHub-Api-Version" = "2022-11-28" }
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/vlxtn/omnyx-desktop/releases/latest" -Headers $headers
+          Write-Host "Latest release: $($release.tag_name)"
+          $asset = $release.assets | Where-Object { $_.name -eq "Omnyx-Setup.exe" } | Select-Object -First 1
+          if (-not $asset) { Write-Error "Asset Omnyx-Setup.exe not found"; exit 1 }
+          Write-Host "Downloading: $($asset.browser_download_url)"
+          curl.exe -L -H "Authorization: Bearer $env:GH_TOKEN" -H "Accept: application/octet-stream" -o companion-setup.exe $asset.url
+          $size = (Get-Item companion-setup.exe -ErrorAction SilentlyContinue).Length
           Write-Host "companion-setup.exe: $size bytes"
-          if ($size -lt 10000) { exit 1 }
+          if (-not $size -or $size -lt 10000) { Write-Error "File too small or missing"; exit 1 }
 
       - name: Publish Windows
         run: npx electron-builder --win --publish always
