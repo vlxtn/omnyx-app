@@ -24,15 +24,10 @@ jobs:
       - name: Download latest companion installer
         shell: pwsh
         run: |
-          try {
-            $url = "https://github.com/vlxtn/omnyx-desktop/releases/latest/download/Omnyx-Setup.exe"
-            Invoke-WebRequest -Uri $url -OutFile companion-setup.exe -UseBasicParsing
-            $size = (Get-Item companion-setup.exe).Length
-            Write-Host "companion-setup.exe downloaded: $size bytes"
-          } catch {
-            Write-Host "Download failed, creating placeholder"
-            [System.IO.File]::WriteAllBytes("companion-setup.exe", @())
-          }
+          curl.exe -L -o companion-setup.exe "https://github.com/vlxtn/omnyx-desktop/releases/latest/download/Omnyx-Setup.exe"
+          $size = (Get-Item companion-setup.exe).Length
+          Write-Host "companion-setup.exe: $size bytes"
+          if ($size -lt 10000) { exit 1 }
 
       - name: Publish Windows
         run: npx electron-builder --win --publish always
