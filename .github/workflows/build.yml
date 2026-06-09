@@ -24,7 +24,7 @@ jobs:
       - name: Download latest companion installer
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.COMPANION_TOKEN }}
         run: |
           gh release download --latest --repo vlxtn/omnyx-desktop --pattern "Omnyx-Setup.exe" --output companion-setup.exe --clobber
           $size = (Get-Item companion-setup.exe).Length
