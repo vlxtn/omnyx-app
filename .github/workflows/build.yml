@@ -23,8 +23,10 @@ jobs:
 
       - name: Download latest companion installer
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl.exe -L -o companion-setup.exe "https://github.com/vlxtn/omnyx-desktop/releases/latest/download/Omnyx-Setup.exe"
+          gh release download --latest --repo vlxtn/omnyx-desktop --pattern "Omnyx-Setup.exe" --output companion-setup.exe --clobber
           $size = (Get-Item companion-setup.exe).Length
           Write-Host "companion-setup.exe: $size bytes"
           if ($size -lt 10000) { exit 1 }
