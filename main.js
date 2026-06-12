@@ -56,12 +56,20 @@ async function clearPersistedToken() {
 }
 
 function getCompanionExe() {
-  const local = process.env.LOCALAPPDATA || "";
-  const locations = [
-    path.join(local, "Programs", "Omnyx Companion", "Omnyx Companion.exe"),
-    path.join("C:\\Program Files", "Omnyx Companion", "Omnyx Companion.exe"),
+  const roots = [
+    path.join(process.env.LOCALAPPDATA || "", "Programs"),
+    "C:\\Program Files",
+    "C:\\Program Files (x86)",
   ];
-  return locations.find(p => fs.existsSync(p)) || null;
+  for (const root of roots) {
+    let entries;
+    try { entries = fs.readdirSync(root); } catch { continue; }
+    for (const entry of entries) {
+      const exe = path.join(root, entry, "Omnyx Companion.exe");
+      if (fs.existsSync(exe)) return exe;
+    }
+  }
+  return null;
 }
 
 function launchCompanion() {
@@ -182,33 +190,47 @@ function createTray() {
   });
 }
 
-app.whenReady().then(async () => {
-  Menu.setApplicationMenu(null);
-  await createWindow();
-  createTray();
-  installCompanionIfNeeded(); // async, pas besoin d'attendre
+const gotInstanceLock = app.requestSingleInstanceLock();
 
-  globalShortcut.register("Control+R", () => mainWindow?.webContents.reload());
-  globalShortcut.register("Control+Shift+R", () => mainWindow?.webContents.reloadIgnoringCache());
-  globalShortcut.register("Control+Shift+I", () => mainWindow?.webContents.toggleDevTools());
+if (!gotInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
 
-  // Décaler la vérification des mises à jour pour ne pas ralentir le démarrage
-  setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 5000);
-  autoUpdater.on("update-downloaded", () => {
-    dialog.showMessageBox({
-      type: "info",
-      title: "Mise à jour disponible",
-      message: "Une nouvelle version d'Omnyx est prête. Elle sera installée au prochain démarrage.",
-      buttons: ["Redémarrer maintenant", "Plus tard"],
-    }).then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall();
+  app.whenReady().then(async () => {
+    Menu.setApplicationMenu(null);
+    await createWindow();
+    createTray();
+    installCompanionIfNeeded(); // async, pas besoin d'attendre
+
+    globalShortcut.register("Control+R", () => mainWindow?.webContents.reload());
+    globalShortcut.register("Control+Shift+R", () => mainWindow?.webContents.reloadIgnoringCache());
+    globalShortcut.register("Control+Shift+I", () => mainWindow?.webContents.toggleDevTools());
+
+    // Décaler la vérification des mises à jour pour ne pas ralentir le démarrage
+    setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 5000);
+    autoUpdater.on("update-downloaded", () => {
+      dialog.showMessageBox({
+        type: "info",
+        title: "Mise à jour disponible",
+        message: "Une nouvelle version d'Omnyx est prête. Elle sera installée au prochain démarrage.",
+        buttons: ["Redémarrer maintenant", "Plus tard"],
+      }).then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall();
+      });
+    });
+
+    app.on("activate", () => {
+      mainWindow.show();
     });
   });
-
-  app.on("activate", () => {
-    mainWindow.show();
-  });
-});
+}
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
