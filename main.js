@@ -214,9 +214,10 @@ if (!gotInstanceLock) {
     globalShortcut.register("Control+Shift+I", () => mainWindow?.webContents.toggleDevTools());
 
     // Décaler la vérification des mises à jour pour ne pas ralentir le démarrage,
-    // puis revérifier périodiquement (l'app peut rester ouverte longtemps)
+    // puis revérifier très régulièrement (on veut qu'une nouvelle release soit
+    // récupérée quasi immédiatement après sa publication)
     setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 5000);
-    setInterval(() => autoUpdater.checkForUpdatesAndNotify(), 60 * 60 * 1000);
+    setInterval(() => autoUpdater.checkForUpdatesAndNotify(), 2 * 60 * 1000);
     autoUpdater.on("update-downloaded", () => {
       dialog.showMessageBox({
         type: "info",
