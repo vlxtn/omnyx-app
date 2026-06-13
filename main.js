@@ -3,6 +3,21 @@ const { autoUpdater } = require("electron-updater");
 const { execFile } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const WebSocket = require("ws");
+
+// Notification push : dès qu'une release est publiée sur GitHub, le backend
+// nous prévient via ce WebSocket et on vérifie immédiatement les mises à jour.
+function connectUpdateSocket() {
+  const ws = new WebSocket("wss://omnyx-backend-production.up.railway.app/api/ws/updates");
+  ws.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.type === "update_available") autoUpdater.checkForUpdatesAndNotify();
+    } catch {}
+  });
+  ws.on("close", () => setTimeout(connectUpdateSocket, 10000));
+  ws.on("error", () => ws.close());
+}
 
 let mainWindow;
 let tray;
@@ -214,10 +229,11 @@ if (!gotInstanceLock) {
     globalShortcut.register("Control+Shift+I", () => mainWindow?.webContents.toggleDevTools());
 
     // Décaler la vérification des mises à jour pour ne pas ralentir le démarrage,
-    // puis revérifier très régulièrement (on veut qu'une nouvelle release soit
-    // récupérée quasi immédiatement après sa publication)
+    // puis se brancher sur le flux de notifications push du backend pour réagir
+    // instantanément à chaque nouvelle release (filet de sécurité : re-vérif toutes les 6h)
     setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 5000);
-    setInterval(() => autoUpdater.checkForUpdatesAndNotify(), 2 * 60 * 1000);
+    setInterval(() => autoUpdater.checkForUpdatesAndNotify(), 6 * 60 * 60 * 1000);
+    connectUpdateSocket();
     autoUpdater.on("update-downloaded", () => {
       dialog.showMessageBox({
         type: "info",
